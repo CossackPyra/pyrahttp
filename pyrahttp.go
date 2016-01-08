@@ -15,6 +15,8 @@ func ListenAndServeLetsEncrypt(addr string, certFile string, keyFile string, han
 
 	for {
 
+		fmt.Println("ListenAndServeLetsEncrypt 1")
+
 		srv := &http.Server{Addr: addr, Handler: handler}
 
 		if addr == "" {
@@ -25,6 +27,8 @@ func ListenAndServeLetsEncrypt(addr string, certFile string, keyFile string, han
 			config.NextProtos = []string{"http/1.1"}
 		}
 
+		fmt.Println("ListenAndServeLetsEncrypt 2")
+
 		if len(config.Certificates) == 0 || certFile != "" || keyFile != "" {
 			var err error
 			config.Certificates = make([]tls.Certificate, 1)
@@ -34,11 +38,14 @@ func ListenAndServeLetsEncrypt(addr string, certFile string, keyFile string, han
 			}
 		}
 
+		fmt.Println("ListenAndServeLetsEncrypt 3")
+
 		ln, err := net.Listen("tcp", addr)
 		if err != nil {
 			return err
 		}
 
+		fmt.Println("ListenAndServeLetsEncrypt 4")
 		// tlsListener := tls.NewListener(tcpKeepAliveListener{ln.(*net.TCPListener)}, config)
 		tlsListener := tls.NewListener(tcpKeepAliveListener{ln.(*net.TCPListener)}, config)
 
@@ -46,13 +53,16 @@ func ListenAndServeLetsEncrypt(addr string, certFile string, keyFile string, han
 		if err != nil {
 			return err
 		}
+		fmt.Println("ListenAndServeLetsEncrypt 5")
 		err = srv.Serve(sl)
+		fmt.Println("ListenAndServeLetsEncrypt 6 ", err)
 
 		if err == ReloadError {
 			fmt.Printf("Reloading certs %s %s\n", keyFile, certFile)
 			continue
 		}
 
+		fmt.Println("ListenAndServeLetsEncrypt 7 exit")
 		return err
 	}
 
@@ -140,21 +150,28 @@ func (sl *StoppableListener) Accept() (net.Conn, error) {
 		//Wait up to one second for a new connection
 		sl.SetDeadline(time.Now().Add(time.Minute))
 
-		newConn, err := sl.TCPListener.AcceptTCP()
+		// newConn, err := sl.TCPListener.AcceptTCP()
+		newConn, err := sl.TCPListener.Accept()
 
-		newConn.SetKeepAlive(true)
-		newConn.SetKeepAlivePeriod(3 * time.Minute)
+		// newConn.SetKeepAlive(true)
+		// newConn.SetKeepAlivePeriod(3 * time.Minute)
 
+		fmt.Print("checking cert ")
 		fi, err1 := os.Stat(sl.certFile)
 		if err1 == nil {
+			fmt.Printf(" nil %d %d ", fi.ModTime().UnixNano(), sl.certTime)
 			if fi.ModTime().UnixNano() != sl.certTime {
+				fmt.Print(" reload\n")
 				return nil, ReloadError
 			}
 		}
 
+		fmt.Print(" key ")
 		fi, err1 = os.Stat(sl.keyFile)
 		if err1 == nil {
+			fmt.Printf(" nil %d %d ", fi.ModTime().UnixNano(), sl.keyTime)
 			if fi.ModTime().UnixNano() != sl.keyTime {
+				fmt.Print(" reload\n")
 				return nil, ReloadError
 			}
 		}
