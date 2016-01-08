@@ -44,10 +44,17 @@ func ListenAndServeLetsEncrypt(addr string, certFile string, keyFile string, han
 		if err != nil {
 			return err
 		}
+		fmt.Println("ListenAndServeLetsEncrypt 3.5")
+
+		tcpln, ok := ln.(*net.TCPListener)
+
+		if !ok {
+			return errors.New(fmt.Sprintf("failed wrap %#v", ln))
+		}
 
 		fmt.Println("ListenAndServeLetsEncrypt 4")
 		// tlsListener := tls.NewListener(tcpKeepAliveListener{ln.(*net.TCPListener)}, config)
-		tlsListener := tls.NewListener(tcpKeepAliveListener{ln.(*net.TCPListener)}, config)
+		tlsListener := tls.NewListener(tcpKeepAliveListener{tcpln}, config)
 
 		sl, err := New(tlsListener, certFile, keyFile)
 		if err != nil {
