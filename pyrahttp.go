@@ -56,7 +56,7 @@ func ListenAndServeLetsEncrypt(addr string, certFile string, keyFile string, han
 		// tlsListener := tls.NewListener(tcpKeepAliveListener{ln.(*net.TCPListener)}, config)
 		tlsListener := tls.NewListener(tcpKeepAliveListener{tcpln}, config)
 
-		sl, err := New(tlsListener, certFile, keyFile)
+		sl, err := New(tlsListener, tcpln, certFile, keyFile)
 		if err != nil {
 			return err
 		}
@@ -124,12 +124,12 @@ type StoppableListener struct {
 	keyTime          int64
 }
 
-func New(l net.Listener, certFile string, keyFile string) (*StoppableListener, error) {
-	tcpL, ok := l.(*net.TCPListener)
+func New(l net.Listener, tcpL *net.TCPListener, certFile string, keyFile string) (*StoppableListener, error) {
+	// tcpL, ok := l.(*net.TCPListener)
 
-	if !ok {
-		return nil, errors.New("Cannot wrap listener")
-	}
+	// if !ok {
+	// 	return nil, errors.New("Cannot wrap listener")
+	// }
 
 	retval := &StoppableListener{}
 	retval.TCPListener = tcpL
