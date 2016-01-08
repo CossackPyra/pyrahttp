@@ -11,6 +11,35 @@ import (
 )
 
 // https://golang.org/src/net/http/server.go?s=59426:59517#L1988
+
+func ListenAndServeTLS(addr string, certFile, keyFile string, handler http.Handler) error {
+	srv := &http.Server{Addr: addr, Handler: handler}
+	if addr == "" {
+		addr = ":https"
+	}
+	config := cloneTLSConfig(srv.TLSConfig)
+	if config.NextProtos == nil {
+		config.NextProtos = []string{"http/1.1"}
+	}
+
+	if len(config.Certificates) == 0 || certFile != "" || keyFile != "" {
+		var err error
+		config.Certificates = make([]tls.Certificate, 1)
+		config.Certificates[0], err = tls.LoadX509KeyPair(certFile, keyFile)
+		if err != nil {
+			return err
+		}
+	}
+
+	ln, err := net.Listen("tcp", addr)
+	if err != nil {
+		return err
+	}
+
+	tlsListener := tls.NewListener(tcpKeepAliveListener{ln.(*net.TCPListener)}, config)
+	return srv.Serve(tlsListener)
+}
+
 func ListenAndServeLetsEncrypt(addr string, certFile string, keyFile string, handler http.Handler) error {
 
 	for {
