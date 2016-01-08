@@ -183,6 +183,8 @@ func (sl *StoppableListener) Accept() (net.Conn, error) {
 			}
 		}
 
+		fmt.Print(" --\n")
+
 		if err != nil {
 			netErr, ok := err.(net.Error)
 
