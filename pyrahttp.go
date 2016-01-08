@@ -83,14 +83,16 @@ func ListenAndServeLetsEncrypt(addr string, certFile string, keyFile string, han
 
 		fmt.Println("ListenAndServeLetsEncrypt 4")
 		// tlsListener := tls.NewListener(tcpKeepAliveListener{ln.(*net.TCPListener)}, config)
-		tlsListener := tls.NewListener(tcpKeepAliveListener{tcpln}, config)
 
-		sl, err := New(tlsListener, tcpln, certFile, keyFile)
+		sl, err := New(tcpKeepAliveListener{tcpln}, tcpln, certFile, keyFile)
 		if err != nil {
 			return err
 		}
+
+		tlsListener := tls.NewListener(sl, config)
+
 		fmt.Println("ListenAndServeLetsEncrypt 5")
-		err = srv.Serve(sl)
+		err = srv.Serve(tlsListener)
 		fmt.Println("ListenAndServeLetsEncrypt 6 ", err)
 
 		if err == ReloadError {
