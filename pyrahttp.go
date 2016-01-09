@@ -217,6 +217,7 @@ func (sl *StoppableListener) Accept() (net.Conn, error) {
 					if err == nil {
 						b16 := md5.Sum(b1)
 						if !bytes.Equal(sl.certHash, b16[:]) {
+							sl.certHash = b16[:]
 							// fmt.Print(" reload\n")
 							return nil, ReloadError
 						}
@@ -233,6 +234,7 @@ func (sl *StoppableListener) Accept() (net.Conn, error) {
 					if err == nil {
 						b16 := md5.Sum(b1)
 						if !bytes.Equal(sl.keyHash, b16[:]) {
+							sl.keyHash = b16[:]
 							// fmt.Print(" reload\n")
 							return nil, ReloadError
 						}
