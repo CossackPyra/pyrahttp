@@ -1,9 +1,12 @@
 package pyrahttp
 
 import (
+	"bytes"
+	"crypto/md5"
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"net"
 	"net/http"
 	"os"
@@ -142,6 +145,9 @@ type StoppableListener struct {
 	keyFile          string
 	certTime         int64
 	keyTime          int64
+	certHash         []byte
+	keyHash          []byte
+	time1            int64
 }
 
 func New(l net.Listener, tcpL *net.TCPListener, certFile string, keyFile string) (*StoppableListener, error) {
@@ -159,12 +165,27 @@ func New(l net.Listener, tcpL *net.TCPListener, certFile string, keyFile string)
 		return nil, err
 	}
 	retval.certTime = fi.ModTime().UnixNano()
+	b1, err := ioutil.ReadFile(certFile)
+	if err != nil {
+		return nil, err
+	}
+	b16 := md5.Sum(b1)
+	retval.certHash = b16[:]
+
 	retval.keyFile = keyFile
 	fi, err = os.Stat(keyFile)
 	if err != nil {
 		return nil, err
 	}
 	retval.keyTime = fi.ModTime().UnixNano()
+	b1, err = ioutil.ReadFile(keyFile)
+	if err != nil {
+		return nil, err
+	}
+	b16 = md5.Sum(b1)
+	retval.keyHash = b16[:]
+
+	retval.time1 = time.Now().UnixNano()
 
 	return retval, nil
 }
@@ -183,27 +204,44 @@ func (sl *StoppableListener) Accept() (net.Conn, error) {
 		// newConn.SetKeepAlive(true)
 		// newConn.SetKeepAlivePeriod(3 * time.Minute)
 
-		// fmt.Print("checking cert ")
-		fi, err1 := os.Stat(sl.certFile)
-		if err1 == nil {
-			// fmt.Printf(" nil %d %d ", fi.ModTime().UnixNano(), sl.certTime)
-			if fi.ModTime().UnixNano() != sl.certTime {
-				// fmt.Print(" reload\n")
-				return nil, ReloadError
-			}
-		}
+		now := time.Now().UnixNano()
+		if now-sl.time1 > int64(time.Second)*30 {
+			sl.time1 = now
 
-		// fmt.Print(" key ")
-		fi, err1 = os.Stat(sl.keyFile)
-		if err1 == nil {
-			// fmt.Printf(" nil %d %d ", fi.ModTime().UnixNano(), sl.keyTime)
-			if fi.ModTime().UnixNano() != sl.keyTime {
-				// fmt.Print(" reload\n")
-				return nil, ReloadError
+			// fmt.Print("checking cert ")
+			fi, err1 := os.Stat(sl.certFile)
+			if err1 == nil {
+				// fmt.Printf(" nil %d %d ", fi.ModTime().UnixNano(), sl.certTime)
+				if fi.ModTime().UnixNano() != sl.certTime {
+					b1, err := ioutil.ReadFile(sl.certFile)
+					if err == nil {
+						b16 := md5.Sum(b1)
+						if !bytes.Equal(sl.certHash, b16[:]) {
+							// fmt.Print(" reload\n")
+							return nil, ReloadError
+						}
+					}
+				}
 			}
-		}
 
-		// fmt.Print(" --\n")
+			// fmt.Print(" key ")
+			fi, err1 = os.Stat(sl.keyFile)
+			if err1 == nil {
+				// fmt.Printf(" nil %d %d ", fi.ModTime().UnixNano(), sl.keyTime)
+				if fi.ModTime().UnixNano() != sl.keyTime {
+					b1, err := ioutil.ReadFile(sl.keyFile)
+					if err == nil {
+						b16 := md5.Sum(b1)
+						if !bytes.Equal(sl.keyHash, b16[:]) {
+							// fmt.Print(" reload\n")
+							return nil, ReloadError
+						}
+					}
+				}
+			}
+
+			// fmt.Print(" --\n")
+		}
 
 		if err != nil {
 			netErr, ok := err.(net.Error)
