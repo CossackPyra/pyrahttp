@@ -6,10 +6,13 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net"
 	"net/http"
 	"os"
+	"strings"
+	"sync"
 	"time"
 )
 
@@ -275,4 +278,108 @@ func (ln tcpKeepAliveListener) Accept() (c net.Conn, err error) {
 	tc.SetKeepAlive(true)
 	tc.SetKeepAlivePeriod(3 * time.Minute)
 	return tc, nil
+}
+
+type AuthManager struct {
+	key string
+	lck sync.Mutex
+}
+
+func InitAuthManager(filename string) *AuthManager {
+
+	am := new(AuthManager)
+
+	f1 := func() {
+		b1, err := ioutil.ReadFile(filename)
+		if err == nil {
+			am.lck.Lock()
+			am.key = strings.Replace(string(b1), "\n", "", -1)
+			am.lck.Unlock()
+		}
+	}
+	f1()
+
+	go func() {
+		for {
+			time.Sleep(time.Second * 60)
+			f1()
+		}
+	}()
+
+	return am
+}
+
+func (am *AuthManager) Key() string {
+	am.lck.Lock()
+	key := am.key
+	am.lck.Unlock()
+	return key
+}
+
+func AuthFunc(am *AuthManager, f1 func(w http.ResponseWriter, r *http.Request)) func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		fmt.Println("filter: " + r.URL.String())
+		// auth, _ := SessionStore.Get(req, "SESSION")
+		cookie, _ := r.Cookie("auth")
+
+		// if r.URL.String() == "/admin" || cookie.Value == "abracodabra" {
+		secret := am.Key()
+		if secret == "" {
+			fmt.Println("secret is not set")
+			w.Write([]byte("secret is not set"))
+		} else if cookie != nil && cookie.Value == secret {
+			f1(w, r)
+		} else {
+			fmt.Println("login required")
+			w.Write([]byte("login required"))
+		}
+	}
+}
+
+type AuthHandler struct {
+	am      *AuthManager
+	handler http.Handler
+}
+
+func (h AuthHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+
+	// auth, _ := SessionStore.Get(req, "SESSION")
+
+	cookie, _ := r.Cookie("auth")
+
+	secret := h.am.Key()
+	if secret == "" {
+		fmt.Println("secret is not set")
+		w.Write([]byte("secret is not set"))
+	} else if cookie != nil && cookie.Value == secret {
+		h.handler.ServeHTTP(w, r)
+	} else {
+		w.Write([]byte("login required"))
+	}
+}
+
+func InitAuthHandler(am *AuthManager, h http.Handler) http.Handler {
+	return AuthHandler{am, h}
+}
+
+func LoginHandler(w http.ResponseWriter, r *http.Request) {
+
+	cookie := http.Cookie{
+		Name: "auth",
+		// Value:  "abracodabra",
+		Value:  r.FormValue("key"),
+		MaxAge: 1000000,
+		Secure: true,
+	}
+	http.SetCookie(w, &cookie)
+	w.Header().Set("Content-Type", "text/plain")
+	io.WriteString(w, "Cookie set\n")
+
+	cookie2, _ := r.Cookie("auth")
+	if cookie2 == nil {
+		io.WriteString(w, fmt.Sprintf("cookie is nil\n"))
+	} else {
+		io.WriteString(w, fmt.Sprintf("%s p:%s d:%s re:%s\n", cookie2.Value, cookie2.Path, cookie2.Domain, cookie2.RawExpires))
+	}
+
 }
