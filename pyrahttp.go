@@ -364,10 +364,17 @@ func InitAuthHandler(am *AuthManager, h http.Handler) http.Handler {
 
 func LoginHandler(w http.ResponseWriter, r *http.Request) {
 
+	key := r.FormValue("key")
+
+	if r.Method == "POST" {
+		r.ParseForm()
+		key = r.FormValue("key")
+	}
+
 	cookie := http.Cookie{
 		Name: "auth",
 		// Value:  "abracodabra",
-		Value:  r.FormValue("key"),
+		Value:  key,
 		MaxAge: 1000000,
 		Secure: true,
 	}
