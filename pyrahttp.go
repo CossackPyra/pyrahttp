@@ -331,7 +331,8 @@ func AuthFunc(am *AuthManager, f1 func(w http.ResponseWriter, r *http.Request)) 
 			f1(w, r)
 		} else {
 			fmt.Println("login required")
-			w.Write([]byte("login required"))
+			w.Header().Set("Content-Type", "text/html")
+			w.Write([]byte("<html><body>login required <a href='login.html'>login</a></body></html>"))
 		}
 	}
 }
@@ -354,7 +355,9 @@ func (h AuthHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	} else if cookie != nil && cookie.Value == secret {
 		h.handler.ServeHTTP(w, r)
 	} else {
-		w.Write([]byte("login required"))
+		// w.Write([]byte("login required"))
+		w.Header().Set("Content-Type", "text/html")
+		w.Write([]byte("<html><body>login required <a href='login.html'>login</a></body></html>"))
 	}
 }
 
@@ -375,7 +378,7 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) {
 		Name: "auth",
 		// Value:  "abracodabra",
 		Value:  key,
-		MaxAge: 1000000,
+		MaxAge: 100000000,
 		Secure: true,
 	}
 	http.SetCookie(w, &cookie)
