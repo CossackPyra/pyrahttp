@@ -101,6 +101,65 @@ func ListenAndServeLetsEncrypt(addr string, certFile string, keyFile string, han
 
 }
 
+
+
+func ListenAndServeLetsEncryptServer(addr string, certFile string, keyFile string, srv *http.Server) error {
+
+	for {
+
+		srv.Addr = addr
+		
+		if addr == "" {
+			addr = ":https"
+		}
+		config := cloneTLSConfig(srv.TLSConfig)
+		if config.NextProtos == nil {
+			config.NextProtos = []string{"http/1.1"}
+		}
+
+		if len(config.Certificates) == 0 || certFile != "" || keyFile != "" {
+			var err error
+			config.Certificates = make([]tls.Certificate, 1)
+			config.Certificates[0], err = tls.LoadX509KeyPair(certFile, keyFile)
+			if err != nil {
+				return err
+			}
+		}
+
+		ln, err := net.Listen("tcp", addr)
+		if err != nil {
+			return err
+		}
+
+		tcpln, ok := ln.(*net.TCPListener)
+
+		if !ok {
+			return errors.New(fmt.Sprintf("failed wrap %#v", ln))
+		}
+
+		// tlsListener := tls.NewListener(tcpKeepAliveListener{ln.(*net.TCPListener)}, config)
+
+		sl, err := New(tcpKeepAliveListener{tcpln}, tcpln, certFile, keyFile)
+		if err != nil {
+			return err
+		}
+
+		tlsListener := tls.NewListener(sl, config)
+
+		err = srv.Serve(tlsListener)
+
+		if err == ReloadError {
+			fmt.Printf("Reloading certs %s %s\n", keyFile, certFile)
+			continue
+		}
+
+		return err
+	}
+
+}
+
+
+
 // taken from https://golang.org/src/net/http/transport.go#L1396
 
 // cloneTLSConfig returns a shallow clone of the exported
